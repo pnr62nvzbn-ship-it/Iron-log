@@ -13,7 +13,7 @@ const EXERCISE_LIBRARY = {
 const MUSCLE_GROUPS = Object.keys(EXERCISE_LIBRARY);
 
 // ---------- Wheel picker ----------
-const WHEEL_ITEM_H = 40;
+const WHEEL_ITEM_H = 48;
 const WHEEL_VISIBLE = 5;
 const WHEEL_HEIGHT = WHEEL_ITEM_H * WHEEL_VISIBLE;
 const WHEEL_PAD = (WHEEL_HEIGHT - WHEEL_ITEM_H) / 2;
@@ -105,6 +105,13 @@ function WheelPicker({ options, index, onChange }) {
     const el = scrollRef.current;
     if (!el) return;
 
+    // Hard-clamp scrollTop so it's never possible to drag past the first
+    // or last item, as a backup in case CSS overscroll-behavior isn't
+    // fully honored (support varies slightly across browsers).
+    const maxScroll = (options.length - 1) * WHEEL_ITEM_H;
+    if (el.scrollTop < 0) el.scrollTop = 0;
+    else if (el.scrollTop > maxScroll) el.scrollTop = maxScroll;
+
     // Track the exact scroll position every frame so the text scale/opacity
     // moves in lockstep with the finger instead of jumping after a delay.
     if (rafRef.current == null) {
@@ -174,7 +181,7 @@ const wheelStyles = {
     flex: 1,
     overflow: "hidden",
     touchAction: "pan-y",
-    overscrollBehavior: "contain",
+    overscrollBehavior: "none",
   },
   centerHighlight: {
     position: "absolute",
@@ -193,7 +200,7 @@ const wheelStyles = {
     overflowY: "scroll",
     overflowX: "hidden",
     touchAction: "pan-y",
-    overscrollBehavior: "contain",
+    overscrollBehavior: "none",
     scrollSnapType: "y mandatory",
     WebkitOverflowScrolling: "touch",
   },
@@ -204,7 +211,7 @@ const wheelStyles = {
     justifyContent: "center",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontWeight: 700,
-    fontSize: 17,
+    fontSize: 19,
     scrollSnapAlign: "center",
     textAlign: "center",
     padding: "0 8px",
@@ -799,7 +806,9 @@ const styles = {
     bottom: 0,
     width: "100%",
     maxWidth: 480,
-    minHeight: "88vh",
+    minHeight: "90vh",
+    maxHeight: "96vh",
+    overflowY: "auto",
     background: "#111214",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -828,9 +837,9 @@ const styles = {
   sheetCard: {
     background: "#232529",
     borderRadius: 20,
-    padding: "20px 16px",
+    padding: "24px 16px",
     marginTop: 8,
-    minHeight: "56vh",
+    minHeight: "48vh",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
