@@ -328,6 +328,95 @@ export default function WorkoutLogger() {
   const dragInfo = useRef({ startX: 0, startY: 0, baseOffset: 0, width: 0, locked: null });
   const [importPending, setImportPending] = useState(null); // parsed data awaiting confirmation, or null
   const [importError, setImportError] = useState(null); // error message string, or null
+  const [sliderStretching, setSliderStretching] = useState(false);
+  const stretchTimeout = useRef(null);
+  const navRef = useRef(null);
+  const navSliderRef = useRef(null);
+  // navDragActive is a rare on/off flip (drag start / drag end) so React only
+  // re-renders twice per gesture. The actual per-frame position is written
+  // straight to the DOM node below — going through setState for every touch
+  // frame was forcing the whole app (exercise list, header, everything) to
+  // re-render 60x/sec, which is what made the glide feel janky instead of
+  // native-smooth.
+  const [navDragActive, setNavDragActive] = useState(false);
+  const navDrag = useRef({ startX: 0, dragging: false, latestClientX: 0 });
+  const navRafRef = useRef(null);
+
+  const switchView = (v) => {
+    if (v === view) return;
+    setView(v);
+    setSliderStretching(true);
+    if (stretchTimeout.current) clearTimeout(stretchTimeout.current);
+    stretchTimeout.current = setTimeout(() => setSliderStretching(false), 280);
+  };
+
+  const indexFromClientX = (clientX) => {
+    if (!navRef.current) return 0;
+    const rect = navRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    return Math.max(0, Math.min(VIEWS.length - 1, (x / rect.width) * VIEWS.length));
+  };
+
+  const handleNavTouchStart = (e) => {
+    navDrag.current.startX = e.touches[0].clientX;
+    navDrag.current.dragging = false;
+  };
+
+  const endNavDrag = () => {
+    if (navRafRef.current != null) {
+      cancelAnimationFrame(navRafRef.current);
+      navRafRef.current = null;
+    }
+    if (navDrag.current.dragging) {
+      const target = Math.round(indexFromClientX(navDrag.current.latestClientX));
+      switchView(VIEWS[Math.max(0, Math.min(VIEWS.length - 1, target))]);
+    }
+    navDrag.current.dragging = false;
+    setNavDragActive(false);
+  };
+
+  // Manually attached (not React's onTouchMove) so { passive: false } lets
+  // preventDefault actually stop the page from scrolling once a real drag
+  // starts — same reasoning as the page-swipe handler above.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const onMove = (e) => {
+      const touch = e.touches[0];
+      navDrag.current.latestClientX = touch.clientX;
+      // Claim the gesture from the very first move, every time — iOS Safari
+      // decides whether JS or native scrolling owns a touch gesture based on
+      // the FIRST touchmove event.
+      e.preventDefault();
+
+      if (!navDrag.current.dragging) {
+        const delta = Math.abs(touch.clientX - navDrag.current.startX);
+        if (delta < 6) return; // still just a tap
+        navDrag.current.dragging = true;
+        setNavDragActive(true); // one state flip to kill the CSS transition, not per-frame
+      }
+
+      // Sync to the display's refresh rate and write straight to the DOM —
+      // no setState, no re-render, just a transform update. This is what
+      // makes it track the finger at a steady 60fps instead of stuttering.
+      if (navRafRef.current == null) {
+        navRafRef.current = requestAnimationFrame(() => {
+          navRafRef.current = null;
+          const idx = indexFromClientX(navDrag.current.latestClientX);
+          if (navSliderRef.current) {
+            navSliderRef.current.style.transform = `translateX(${idx * 100}%)`;
+          }
+        });
+      }
+    };
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchcancel", endNavDrag);
+    return () => {
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchcancel", endNavDrag);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workouts]);
 
   const currentGroup = MUSCLE_GROUPS[groupIdx];
   const currentExerciseList = EXERCISE_LIBRARY[currentGroup];
@@ -385,7 +474,7 @@ export default function WorkoutLogger() {
     };
     el.addEventListener("touchmove", onMove, { passive: false });
     return () => el.removeEventListener("touchmove", onMove);
-  }, [addingExercise]);
+  }, [addingExercise, workouts]);
 
   const handleTouchEnd = () => {
     const info = dragInfo.current;
@@ -833,22 +922,47 @@ export default function WorkoutLogger() {
       )}
 
       {/* Bottom nav */}
-      <div style={styles.bottomNav}>
+      <div
+        style={styles.bottomNav}
+        ref={navRef}
+        onTouchStart={handleNavTouchStart}
+        onTouchEnd={endNavDrag}
+      >
         <div
+          ref={navSliderRef}
           style={{
             ...styles.navSlider,
-            transform: `translateX(${viewIndex * 100}%)`,
+            // This value only matters for the initial paint and any incidental
+            // re-render — while actively dragging, the touchmove handler
+            // overwrites style.transform directly on the DOM node every
+            // frame, bypassing React entirely for smoothness.
+            transform: `translateX(${
+              (dragOffset !== null && dragInfo.current.width
+                ? Math.max(0, Math.min(VIEWS.length - 1, -dragOffset / dragInfo.current.width))
+                : viewIndex) * 100
+            }%) scaleX(${sliderStretching ? 1.14 : 1})`,
+            transition: navDragActive || dragOffset !== null ? "none" : styles.navSlider.transition,
           }}
-        />
-        <button style={styles.navBtn} onClick={() => setView("today")}>
+        >
+          {/* Specular highlight — a soft light patch that drifts across the
+              glass opposite the motion, like light catching a curved surface
+              as it moves. */}
+          <div
+            style={{
+              ...styles.navSliderShine,
+              transform: `translateX(${sliderStretching ? -8 : 0}px)`,
+            }}
+          />
+        </div>
+        <button style={styles.navBtn} onClick={() => switchView("today")}>
           <Flame size={18} strokeWidth={2} color={view === "today" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "today" ? styles.navLabelActive : styles.navLabel}>Today</span>
         </button>
-        <button style={styles.navBtn} onClick={() => setView("history")}>
+        <button style={styles.navBtn} onClick={() => switchView("history")}>
           <History size={18} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "history" ? styles.navLabelActive : styles.navLabel}>History</span>
         </button>
-        <button style={styles.navBtn} onClick={() => setView("progress")}>
+        <button style={styles.navBtn} onClick={() => switchView("progress")}>
           <TrendsIcon size={18} strokeWidth={2} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "progress" ? styles.navLabelActive : styles.navLabel}>Progress</span>
         </button>
@@ -1339,6 +1453,7 @@ const styles = {
     boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
     border: "1px solid rgba(255,255,255,0.06)",
     overflow: "hidden",
+    touchAction: "none",
   },
   navSlider: {
     position: "absolute",
@@ -1347,9 +1462,30 @@ const styles = {
     left: 6,
     width: "calc(33.3334% - 6px)",
     borderRadius: 28,
-    background: "rgba(199, 161, 90, 0.18)",
-    border: "1px solid rgba(199, 161, 90, 0.35)",
-    transition: "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
+    background: "rgba(199, 161, 90, 0.22)",
+    backdropFilter: "blur(14px) saturate(180%)",
+    WebkitBackdropFilter: "blur(14px) saturate(180%)",
+    border: "1px solid rgba(255,255,255,0.16)",
+    // The two thin colored insets fake the faint chromatic-aberration edge
+    // real curved glass/lens surfaces show (very subtle — a rim, not a
+    // rainbow) alongside the normal glass highlight/shadow.
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -6px 10px rgba(0,0,0,0.15), inset 1px 0 0 rgba(120,180,255,0.10), inset -1px 0 0 rgba(255,150,180,0.10), 0 4px 16px rgba(199,161,90,0.28)",
+    // Slight overshoot on the curve gives it a springy, liquid glide instead
+    // of a mechanical slide.
+    transition: "transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)",
+    pointerEvents: "none",
+    overflow: "hidden",
+  },
+  navSliderShine: {
+    position: "absolute",
+    top: "-40%",
+    left: "-20%",
+    width: "70%",
+    height: "90%",
+    borderRadius: "50%",
+    background: "radial-gradient(closest-side, rgba(255,255,255,0.35), rgba(255,255,255,0) 70%)",
+    transition: "transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)",
     pointerEvents: "none",
   },
   statsRow: {
@@ -1441,6 +1577,7 @@ const styles = {
     padding: "2px 0",
     position: "relative",
     zIndex: 1,
+    touchAction: "none",
   },
   navLabel: {
     color: "#8E8E8E",
