@@ -553,7 +553,7 @@ export default function WorkoutLogger() {
     <div style={styles.page}>
       <style>{`
         * { box-sizing: border-box; }
-        html, body { overscroll-behavior: none; }
+        html, body { margin: 0; padding: 0; overscroll-behavior: none; }
         input::placeholder { color: #6E6E6E; }
         button { cursor: pointer; transition: transform 0.12s ease, opacity 0.12s ease; }
         button:active { transform: scale(0.96); opacity: 0.72; }
