@@ -1,5 +1,30 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, X, Trash2, ChevronDown, ChevronUp, Dumbbell, History, Flame, TrendingUp } from "lucide-react";
+import { Plus, X, Trash2, ChevronDown, ChevronUp, Dumbbell, History, Flame } from "lucide-react";
+
+// Custom "Trends" icon — an axis + zigzag trend line with a solid arrowhead,
+// drawn from scratch to match the composition style the user wants (not a
+// copy of any specific app's artwork) so it fits our brass/gold design system.
+function TrendsIcon({ size = 18, color = "#8E8E8E", strokeWidth = 2 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* axis */}
+      <path d="M3 3 L3 21 L21 21" />
+      {/* zigzag trend line */}
+      <path d="M4.5 16.5 L9.5 12 L13 15 L19.5 6.5" />
+      {/* open chevron arrowhead */}
+      <path d="M14.5 6.5 L20 6 L19.5 11.5" />
+    </svg>
+  );
+}
 
 // ---------- Exercise library ----------
 const EXERCISE_LIBRARY = {
@@ -301,6 +326,8 @@ export default function WorkoutLogger() {
   const viewportRef = useRef(null);
   const [dragOffset, setDragOffset] = useState(null); // px offset while actively dragging, null when not
   const dragInfo = useRef({ startX: 0, startY: 0, baseOffset: 0, width: 0, locked: null });
+  const [importPending, setImportPending] = useState(null); // parsed data awaiting confirmation, or null
+  const [importError, setImportError] = useState(null); // error message string, or null
 
   const currentGroup = MUSCLE_GROUPS[groupIdx];
   const currentExerciseList = EXERCISE_LIBRARY[currentGroup];
@@ -368,6 +395,43 @@ export default function WorkoutLogger() {
     }
     setDragOffset(null);
     dragInfo.current.locked = null;
+  };
+
+  const fileInputRef = useRef(null);
+
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify(workouts, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = todayISO();
+    a.href = url;
+    a.download = `iron-log-backup-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!Array.isArray(parsed)) throw new Error("not an array");
+        setImportPending(parsed);
+      } catch (err) {
+        setImportError("That file doesn't look like a valid Iron Log backup.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmImport = () => {
+    if (importPending) persist(importPending);
+    setImportPending(null);
   };
 
   if (workouts === null) {
@@ -491,7 +555,8 @@ export default function WorkoutLogger() {
         * { box-sizing: border-box; }
         html, body { overscroll-behavior: none; }
         input::placeholder { color: #6E6E6E; }
-        button { cursor: pointer; }
+        button { cursor: pointer; transition: transform 0.12s ease, opacity 0.12s ease; }
+        button:active { transform: scale(0.96); opacity: 0.72; }
         ::-webkit-scrollbar { width: 0px; height: 0px; }
       `}</style>
 
@@ -629,6 +694,22 @@ export default function WorkoutLogger() {
                     </div>
                   </>
                 )}
+
+                <div style={styles.backupRow}>
+                  <button style={styles.ghostBtn} onClick={handleExport}>
+                    Export backup
+                  </button>
+                  <button style={styles.ghostBtn} onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+                    Import backup
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/json"
+                    style={{ display: "none" }}
+                    onChange={handleImportFile}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -714,6 +795,42 @@ export default function WorkoutLogger() {
         </div>
       </div>
 
+      {/* Custom iOS-style alert — import confirmation / error */}
+      {(importPending || importError) && (
+        <>
+          <div style={styles.alertBackdrop} onClick={() => { setImportPending(null); setImportError(null); }} />
+          <div style={styles.alertCard}>
+            {importPending ? (
+              <>
+                <div style={styles.alertTitle}>Import backup?</div>
+                <div style={styles.alertMessage}>
+                  This will replace all data currently in the app with {importPending.length} workout day
+                  {importPending.length === 1 ? "" : "s"} from the file.
+                </div>
+                <div style={styles.alertBtnRow}>
+                  <button style={styles.alertBtnGhost} onClick={() => setImportPending(null)}>
+                    Cancel
+                  </button>
+                  <button style={styles.alertBtnPrimary} onClick={confirmImport}>
+                    Import
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={styles.alertTitle}>Import failed</div>
+                <div style={styles.alertMessage}>{importError}</div>
+                <div style={styles.alertBtnRow}>
+                  <button style={styles.alertBtnPrimary} onClick={() => setImportError(null)}>
+                    OK
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
       {/* Bottom nav */}
       <div style={styles.bottomNav}>
         <div
@@ -731,7 +848,7 @@ export default function WorkoutLogger() {
           <span style={view === "history" ? styles.navLabelActive : styles.navLabel}>History</span>
         </button>
         <button style={styles.navBtn} onClick={() => setView("progress")}>
-          <TrendingUp size={18} strokeWidth={2} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
+          <TrendsIcon size={18} strokeWidth={2} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "progress" ? styles.navLabelActive : styles.navLabel}>Progress</span>
         </button>
       </div>
@@ -1211,13 +1328,15 @@ const styles = {
     transform: "translateX(-50%)",
     width: "calc(100% - 32px)",
     maxWidth: 448,
-    background: "#1E1E1E",
+    background: "rgba(30, 30, 30, 0.72)",
+    backdropFilter: "blur(20px) saturate(160%)",
+    WebkitBackdropFilter: "blur(20px) saturate(160%)",
     borderRadius: 34,
     display: "flex",
     padding: "10px 18px",
     gap: 8,
     boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
-    border: "1px solid #2D2D2D",
+    border: "1px solid rgba(255,255,255,0.06)",
     overflow: "hidden",
   },
   navSlider: {
@@ -1258,6 +1377,11 @@ const styles = {
     letterSpacing: "0.08em",
     color: "#6E6E6E",
     marginTop: 4,
+  },
+  backupRow: {
+    display: "flex",
+    gap: 10,
+    marginTop: 14,
   },
   chartCard: {
     background: "#1E1E1E",
@@ -1324,5 +1448,73 @@ const styles = {
   navLabelActive: {
     color: "#C7A15A",
     fontWeight: 700,
+  },
+  alertBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.5)",
+    backdropFilter: "blur(2px)",
+    WebkitBackdropFilter: "blur(2px)",
+    zIndex: 60,
+  },
+  alertCard: {
+    position: "fixed",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    width: "min(300px, calc(100% - 64px))",
+    background: "rgba(40,40,42,0.86)",
+    backdropFilter: "blur(24px) saturate(180%)",
+    WebkitBackdropFilter: "blur(24px) saturate(180%)",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+    padding: "20px 18px 14px",
+    zIndex: 61,
+    textAlign: "center",
+  },
+  alertTitle: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontWeight: 700,
+    fontSize: 16,
+    color: "#ECE9E2",
+    marginBottom: 6,
+  },
+  alertMessage: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 13,
+    color: "#C8C8C8",
+    lineHeight: 1.4,
+    marginBottom: 14,
+  },
+  alertBtnRow: {
+    display: "flex",
+    gap: 8,
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    marginLeft: -18,
+    marginRight: -18,
+    paddingTop: 10,
+    paddingLeft: 18,
+    paddingRight: 18,
+  },
+  alertBtnGhost: {
+    flex: 1,
+    background: "transparent",
+    border: "none",
+    color: "#8E8E8E",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 15,
+    fontWeight: 500,
+    padding: "8px 0 4px",
+  },
+  alertBtnPrimary: {
+    flex: 1,
+    background: "transparent",
+    border: "none",
+    color: "#C7A15A",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 15,
+    fontWeight: 700,
+    padding: "8px 0 4px",
   },
 };
