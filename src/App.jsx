@@ -302,6 +302,9 @@ export default function WorkoutLogger() {
   const [customMode, setCustomMode] = useState(false);
   const [customName, setCustomName] = useState("");
   const nameInputRef = useRef(null);
+  const viewportRef = useRef(null);
+  const [dragOffset, setDragOffset] = useState(null); // px offset while actively dragging, null when not
+  const dragInfo = useRef({ startX: 0, startY: 0, baseOffset: 0, width: 0, locked: null });
 
   const currentGroup = MUSCLE_GROUPS[groupIdx];
   const currentExerciseList = EXERCISE_LIBRARY[currentGroup];
@@ -319,6 +322,56 @@ export default function WorkoutLogger() {
   useEffect(() => {
     if (addingExercise && nameInputRef.current) nameInputRef.current.focus();
   }, [addingExercise]);
+
+  const handleTouchStart = (e) => {
+    if (addingExercise) return; // don't intercept swipes while the sheet is open
+    const width = viewportRef.current ? viewportRef.current.offsetWidth : 0;
+    dragInfo.current = {
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      baseOffset: view === "today" ? 0 : -width,
+      width,
+      locked: null,
+    };
+  };
+
+  // React attaches onTouchMove as a passive listener, which silently blocks
+  // preventDefault() from working — so the swipe logic would run but could
+  // never actually stop the page's native vertical scroll from fighting it.
+  // A manually-attached listener with { passive: false } fixes that.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const onMove = (e) => {
+      if (addingExercise) return;
+      const info = dragInfo.current;
+      if (!info.width) return;
+      const dx = e.touches[0].clientX - info.startX;
+      const dy = e.touches[0].clientY - info.startY;
+
+      if (info.locked === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        info.locked = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
+      }
+      if (info.locked !== "horizontal") return;
+
+      e.preventDefault();
+      const next = Math.max(-info.width, Math.min(0, info.baseOffset + dx));
+      setDragOffset(next);
+    };
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onMove);
+  }, [addingExercise]);
+
+  const handleTouchEnd = () => {
+    const info = dragInfo.current;
+    if (info.locked === "horizontal" && dragOffset !== null) {
+      const next = dragOffset < -info.width / 2 ? "history" : "today";
+      setView(next);
+    }
+    setDragOffset(null);
+    dragInfo.current.locked = null;
+  };
 
   if (workouts === null) {
     return (
@@ -433,11 +486,20 @@ export default function WorkoutLogger() {
           </div>
         </div>
 
-        <div style={styles.viewport}>
+        <div
+          style={styles.viewport}
+          ref={viewportRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           <div
             style={{
               ...styles.track,
-              transform: `translateX(${view === "today" ? "0%" : "-50%"})`,
+              transform:
+                dragOffset !== null
+                  ? `translateX(${dragOffset}px)`
+                  : `translateX(${view === "today" ? "0%" : "-50%"})`,
+              transition: dragOffset !== null ? "none" : styles.track.transition,
             }}
           >
             <div style={styles.pane}>
@@ -514,45 +576,47 @@ export default function WorkoutLogger() {
         }}
       >
         <div style={styles.sheetTitle}>Add exercise</div>
-        {customMode ? (
-          <>
-            <input
-              ref={nameInputRef}
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addExercise();
-                if (e.key === "Escape") setCustomMode(false);
-              }}
-              placeholder="Exercise name"
-              style={styles.exerciseNameInput}
-            />
-            <button style={styles.linkBtn} onClick={() => setCustomMode(false)}>
-              ← Back to picker
-            </button>
-          </>
-        ) : (
-          <>
-            <div style={wheelStyles.pickerRow}>
-              <WheelPicker
-                options={MUSCLE_GROUPS}
-                index={groupIdx}
-                onChange={(i) => {
-                  setGroupIdx(i);
-                  setExerciseIdx(0);
+        <div style={styles.sheetCard}>
+          {customMode ? (
+            <>
+              <input
+                ref={nameInputRef}
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addExercise();
+                  if (e.key === "Escape") setCustomMode(false);
                 }}
+                placeholder="Exercise name"
+                style={styles.exerciseNameInput}
               />
-              <WheelPicker
-                options={currentExerciseList}
-                index={Math.min(exerciseIdx, currentExerciseList.length - 1)}
-                onChange={setExerciseIdx}
-              />
-            </div>
-            <button style={styles.linkBtn} onClick={() => setCustomMode(true)}>
-              Type a custom exercise instead
-            </button>
-          </>
-        )}
+              <button style={styles.linkBtn} onClick={() => setCustomMode(false)}>
+                ← Back to picker
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={wheelStyles.pickerRow}>
+                <WheelPicker
+                  options={MUSCLE_GROUPS}
+                  index={groupIdx}
+                  onChange={(i) => {
+                    setGroupIdx(i);
+                    setExerciseIdx(0);
+                  }}
+                />
+                <WheelPicker
+                  options={currentExerciseList}
+                  index={Math.min(exerciseIdx, currentExerciseList.length - 1)}
+                  onChange={setExerciseIdx}
+                />
+              </div>
+              <button style={styles.linkBtn} onClick={() => setCustomMode(true)}>
+                Type a custom exercise instead
+              </button>
+            </>
+          )}
+        </div>
 
         <div style={styles.sheetCircleBtnRow}>
           <button
@@ -573,19 +637,19 @@ export default function WorkoutLogger() {
 
       {/* Bottom nav */}
       <div style={styles.bottomNav}>
-        <button
-          style={{ ...styles.navBtn, ...(view === "today" ? styles.navBtnActive : {}) }}
-          onClick={() => setView("today")}
-        >
-          <Flame size={18} strokeWidth={2} />
-          <span>Today</span>
+        <div
+          style={{
+            ...styles.navSlider,
+            transform: `translateX(${view === "today" ? "0%" : "100%"})`,
+          }}
+        />
+        <button style={styles.navBtn} onClick={() => setView("today")}>
+          <Flame size={18} strokeWidth={2} color={view === "today" ? "#C7A15A" : "#8B8D93"} />
+          <span style={view === "today" ? styles.navLabelActive : styles.navLabel}>Today</span>
         </button>
-        <button
-          style={{ ...styles.navBtn, ...(view === "history" ? styles.navBtnActive : {}) }}
-          onClick={() => setView("history")}
-        >
-          <History size={18} strokeWidth={2} />
-          <span>History</span>
+        <button style={styles.navBtn} onClick={() => setView("history")}>
+          <History size={18} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8B8D93"} />
+          <span style={view === "history" ? styles.navLabelActive : styles.navLabel}>History</span>
         </button>
       </div>
     </div>
@@ -735,10 +799,11 @@ const styles = {
     bottom: 0,
     width: "100%",
     maxWidth: 480,
-    background: "#1C1E22",
+    minHeight: "88vh",
+    background: "#111214",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: "10px 20px calc(24px + env(safe-area-inset-bottom))",
+    padding: "22px 20px calc(24px + env(safe-area-inset-bottom))",
     zIndex: 41,
     // Same push/modal easing iOS uses for sheet presentation.
     transition: "transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)",
@@ -759,6 +824,16 @@ const styles = {
     fontSize: 20,
     color: "#ECE9E2",
     marginBottom: 4,
+  },
+  sheetCard: {
+    background: "#232529",
+    borderRadius: 20,
+    padding: "20px 16px",
+    marginTop: 8,
+    minHeight: "56vh",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
   },
   sheetCircleBtnRow: {
     display: "flex",
@@ -843,7 +918,7 @@ const styles = {
     color: "#6b6d73",
     marginTop: 3,
   },
-  viewport: { overflow: "hidden", width: "100%" },
+  viewport: { overflow: "hidden", width: "100%", touchAction: "pan-y" },
   track: {
     display: "flex",
     width: "200%",
@@ -1034,32 +1109,52 @@ const styles = {
   },
   bottomNav: {
     position: "fixed",
-    bottom: 0,
+    bottom: "calc(16px + env(safe-area-inset-bottom))",
     left: "50%",
     transform: "translateX(-50%)",
-    width: "100%",
-    maxWidth: 480,
+    width: "calc(100% - 32px)",
+    maxWidth: 448,
     background: "#1C1E22",
-    borderTop: "1px solid #26282D",
+    borderRadius: 34,
     display: "flex",
-    padding: "10px 16px calc(10px + env(safe-area-inset-bottom))",
+    padding: "10px 18px",
     gap: 8,
+    boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
+    border: "1px solid #2A2C31",
+    overflow: "hidden",
+  },
+  navSlider: {
+    position: "absolute",
+    top: 6,
+    bottom: 6,
+    left: 6,
+    width: "calc(50% - 6px)",
+    borderRadius: 28,
+    background: "rgba(199, 161, 90, 0.18)",
+    border: "1px solid rgba(199, 161, 90, 0.35)",
+    transition: "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
+    pointerEvents: "none",
   },
   navBtn: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 3,
+    gap: 4,
     background: "transparent",
     border: "none",
-    color: "#6b6d73",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 11,
-    padding: "6px 0",
-    borderRadius: 8,
+    padding: "2px 0",
+    position: "relative",
+    zIndex: 1,
   },
-  navBtnActive: {
-    color: "#ECE9E2",
+  navLabel: {
+    color: "#8B8D93",
+    fontWeight: 500,
+  },
+  navLabelActive: {
+    color: "#C7A15A",
+    fontWeight: 700,
   },
 };
