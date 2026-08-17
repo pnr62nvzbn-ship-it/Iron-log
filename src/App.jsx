@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, X, Trash2, ChevronDown, ChevronUp, Dumbbell, History, Flame } from "lucide-react";
+import { Plus, X, Trash2, ChevronDown, ChevronUp, Dumbbell, History, Flame, TrendingUp } from "lucide-react";
 
 // ---------- Exercise library ----------
 const EXERCISE_LIBRARY = {
@@ -285,9 +285,12 @@ function LoadBar({ sets }) {
 }
 
 // ---------- Main App ----------
+const VIEWS = ["today", "history", "progress"];
+
 export default function WorkoutLogger() {
   const [workouts, setWorkouts] = useState(null); // null = loading
-  const [view, setView] = useState("today"); // today | history
+  const [view, setView] = useState("today"); // today | history | progress
+  const viewIndex = VIEWS.indexOf(view);
   const [expanded, setExpanded] = useState({}); // exerciseId -> bool
   const [addingExercise, setAddingExercise] = useState(false);
   const [groupIdx, setGroupIdx] = useState(0);
@@ -322,7 +325,7 @@ export default function WorkoutLogger() {
     dragInfo.current = {
       startX: e.touches[0].clientX,
       startY: e.touches[0].clientY,
-      baseOffset: view === "today" ? 0 : -width,
+      baseOffset: -viewIndex * width,
       width,
       locked: null,
     };
@@ -349,7 +352,8 @@ export default function WorkoutLogger() {
       if (info.locked !== "horizontal") return;
 
       e.preventDefault();
-      const next = Math.max(-info.width, Math.min(0, info.baseOffset + dx));
+      const maxOffset = -(VIEWS.length - 1) * info.width;
+      const next = Math.max(maxOffset, Math.min(0, info.baseOffset + dx));
       setDragOffset(next);
     };
     el.addEventListener("touchmove", onMove, { passive: false });
@@ -358,9 +362,9 @@ export default function WorkoutLogger() {
 
   const handleTouchEnd = () => {
     const info = dragInfo.current;
-    if (info.locked === "horizontal" && dragOffset !== null) {
-      const next = dragOffset < -info.width / 2 ? "history" : "today";
-      setView(next);
+    if (info.locked === "horizontal" && dragOffset !== null && info.width) {
+      const targetIndex = Math.max(0, Math.min(VIEWS.length - 1, Math.round(-dragOffset / info.width)));
+      setView(VIEWS[targetIndex]);
     }
     setDragOffset(null);
     dragInfo.current.locked = null;
@@ -450,6 +454,37 @@ export default function WorkoutLogger() {
     .filter((w) => w.date !== today || (todaysWorkout && todaysWorkout.exercises.length > 0))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 
+  // Progress stats: chronological (oldest first) list of every logged
+  // workout with its total volume, for the chart and streak calculation.
+  const loggedWorkouts = workouts
+    .filter((w) => w.exercises.some((ex) => ex.sets.length > 0))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const workoutVolumes = loggedWorkouts.map((w) => ({
+    date: w.date,
+    volume: w.exercises.reduce((sum, ex) => sum + volumeOf(ex), 0),
+  }));
+  const recentVolumes = workoutVolumes.slice(-8);
+  const maxVolume = Math.max(1, ...recentVolumes.map((w) => w.volume));
+  const allTimeVolume = workoutVolumes.reduce((sum, w) => sum + w.volume, 0);
+  const totalWorkoutsLogged = loggedWorkouts.length;
+
+  let currentStreak = 0;
+  {
+    const loggedDates = new Set(loggedWorkouts.map((w) => w.date));
+    let cursor = new Date();
+    // If today has nothing logged yet, start counting from yesterday so an
+    // in-progress streak doesn't look broken before the day is even over.
+    if (!loggedDates.has(todayISO())) cursor.setDate(cursor.getDate() - 1);
+    while (true) {
+      const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(
+        cursor.getDate()
+      ).padStart(2, "0")}`;
+      if (!loggedDates.has(iso)) break;
+      currentStreak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+  }
+
   return (
     <div style={styles.page}>
       <style>{`
@@ -465,7 +500,9 @@ export default function WorkoutLogger() {
         <div style={styles.header}>
           <div>
             <div style={styles.eyebrow}>IRON LOG</div>
-            <div style={styles.headerDate}>{view === "today" ? "Today" : "History"}</div>
+            <div style={styles.headerDate}>
+              {view === "today" ? "Today" : view === "history" ? "History" : "Progress"}
+            </div>
           </div>
           <div style={styles.statPair}>
             <div style={styles.statBlock}>
@@ -491,7 +528,7 @@ export default function WorkoutLogger() {
               transform:
                 dragOffset !== null
                   ? `translateX(${dragOffset}px)`
-                  : `translateX(${view === "today" ? "0%" : "-50%"})`,
+                  : `translateX(${-viewIndex * (100 / VIEWS.length)}%)`,
               transition: dragOffset !== null ? "none" : styles.track.transition,
             }}
           >
@@ -543,6 +580,55 @@ export default function WorkoutLogger() {
                 {pastWorkouts.map((w) => (
                   <HistoryCard key={w.date} workout={w} />
                 ))}
+              </div>
+            </div>
+
+            <div style={styles.pane}>
+              <div style={styles.list}>
+                {loggedWorkouts.length === 0 ? (
+                  <div style={styles.emptyState}>
+                    <Flame size={28} color="#4D4D4D" strokeWidth={1.5} />
+                    <div style={styles.emptyTitle}>No progress yet</div>
+                    <div style={styles.emptySub}>Log a few workouts and your trends will show up here.</div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={styles.statsRow}>
+                      <div style={styles.statCard}>
+                        <div style={styles.statCardNum}>{totalWorkoutsLogged}</div>
+                        <div style={styles.statCardLabel}>WORKOUTS</div>
+                      </div>
+                      <div style={styles.statCard}>
+                        <div style={styles.statCardNum}>{currentStreak}</div>
+                        <div style={styles.statCardLabel}>DAY STREAK</div>
+                      </div>
+                      <div style={styles.statCard}>
+                        <div style={styles.statCardNum}>{allTimeVolume.toLocaleString()}</div>
+                        <div style={styles.statCardLabel}>ALL-TIME VOL</div>
+                      </div>
+                    </div>
+
+                    <div style={styles.chartCard}>
+                      <div style={styles.chartTitle}>Volume — last {recentVolumes.length} workouts</div>
+                      <div style={styles.chartRow}>
+                        {recentVolumes.map((w, i) => {
+                          const h = Math.max(4, Math.round((w.volume / maxVolume) * 120));
+                          const [, m, d] = w.date.split("-");
+                          return (
+                            <div key={w.date + i} style={styles.chartBarCol}>
+                              <div style={styles.chartBarTrack}>
+                                <div style={{ ...styles.chartBar, height: h }} />
+                              </div>
+                              <div style={styles.chartBarLabel}>
+                                {m}/{d}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -633,7 +719,7 @@ export default function WorkoutLogger() {
         <div
           style={{
             ...styles.navSlider,
-            transform: `translateX(${view === "today" ? "0%" : "100%"})`,
+            transform: `translateX(${viewIndex * 100}%)`,
           }}
         />
         <button style={styles.navBtn} onClick={() => setView("today")}>
@@ -643,6 +729,10 @@ export default function WorkoutLogger() {
         <button style={styles.navBtn} onClick={() => setView("history")}>
           <History size={18} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "history" ? styles.navLabelActive : styles.navLabel}>History</span>
+        </button>
+        <button style={styles.navBtn} onClick={() => setView("progress")}>
+          <TrendingUp size={18} strokeWidth={2} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
+          <span style={view === "progress" ? styles.navLabelActive : styles.navLabel}>Progress</span>
         </button>
       </div>
     </div>
@@ -917,12 +1007,12 @@ const styles = {
   viewport: { overflow: "hidden", width: "100%", touchAction: "pan-y" },
   track: {
     display: "flex",
-    width: "200%",
+    width: "300%",
     touchAction: "pan-y",
     // Apple's own UINavigationController push-transition curve and duration.
     transition: "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
   },
-  pane: { width: "50%", flexShrink: 0, minWidth: 0, touchAction: "pan-y" },
+  pane: { width: "33.3334%", flexShrink: 0, minWidth: 0, touchAction: "pan-y" },
   list: {
     padding: "18px 16px",
     display: "flex",
@@ -1135,12 +1225,83 @@ const styles = {
     top: 6,
     bottom: 6,
     left: 6,
-    width: "calc(50% - 6px)",
+    width: "calc(33.3334% - 6px)",
     borderRadius: 28,
     background: "rgba(199, 161, 90, 0.18)",
     border: "1px solid rgba(199, 161, 90, 0.35)",
     transition: "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
     pointerEvents: "none",
+  },
+  statsRow: {
+    display: "flex",
+    gap: 10,
+    marginBottom: 14,
+  },
+  statCard: {
+    flex: 1,
+    background: "#1E1E1E",
+    border: "1px solid #292929",
+    borderRadius: 16,
+    padding: "14px 10px",
+    textAlign: "center",
+  },
+  statCardNum: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 20,
+    fontWeight: 700,
+    color: "#ECE9E2",
+    fontVariantNumeric: "tabular-nums",
+  },
+  statCardLabel: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 9,
+    letterSpacing: "0.08em",
+    color: "#6E6E6E",
+    marginTop: 4,
+  },
+  chartCard: {
+    background: "#1E1E1E",
+    border: "1px solid #292929",
+    borderRadius: 20,
+    padding: "18px 16px 14px",
+  },
+  chartTitle: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#8E8E8E",
+    marginBottom: 16,
+  },
+  chartRow: {
+    display: "flex",
+    alignItems: "flex-end",
+    gap: 8,
+    height: 140,
+  },
+  chartBarCol: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+  },
+  chartBarTrack: {
+    width: "100%",
+    height: 120,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  chartBar: {
+    width: "70%",
+    background: "linear-gradient(180deg, #C7A15A, #9C7A3E)",
+    borderRadius: 4,
+    minHeight: 4,
+  },
+  chartBarLabel: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 9,
+    color: "#6E6E6E",
   },
   navBtn: {
     flex: 1,
