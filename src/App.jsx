@@ -201,7 +201,6 @@ const wheelStyles = {
     touchAction: "pan-y",
     overscrollBehavior: "none",
     scrollSnapType: "y mandatory",
-    WebkitOverflowScrolling: "touch",
   },
   item: {
     height: WHEEL_ITEM_H,
@@ -809,6 +808,7 @@ const styles = {
     minHeight: "90vh",
     maxHeight: "96vh",
     overflowY: "auto",
+    overscrollBehavior: "contain",
     background: "#0C0C0C",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
