@@ -553,12 +553,10 @@ export default function WorkoutLogger() {
             </button>
           </>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button style={styles.primaryBtn} onClick={addExercise}>
-            Add {customMode ? "" : currentExerciseName}
-          </button>
+
+        <div style={styles.sheetCircleBtnRow}>
           <button
-            style={styles.ghostBtn}
+            style={styles.sheetCircleBtnCancel}
             onClick={() => {
               setAddingExercise(false);
               setCustomMode(false);
@@ -566,6 +564,9 @@ export default function WorkoutLogger() {
             }}
           >
             Cancel
+          </button>
+          <button style={styles.sheetCircleBtnAdd} onClick={addExercise}>
+            Add
           </button>
         </div>
       </div>
@@ -746,12 +747,47 @@ const styles = {
     flexDirection: "column",
     gap: 10,
   },
+  sheetHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   sheetTitle: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontWeight: 700,
     fontSize: 20,
     color: "#ECE9E2",
     marginBottom: 4,
+  },
+  sheetCircleBtnRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 20,
+    padding: "0 8px",
+  },
+  sheetCircleBtnCancel: {
+    width: 76,
+    height: 76,
+    borderRadius: "50%",
+    background: "#2A2C31",
+    border: "none",
+    color: "#ECE9E2",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 15,
+    fontWeight: 500,
+  },
+  sheetCircleBtnAdd: {
+    width: 76,
+    height: 76,
+    borderRadius: "50%",
+    background: "#C7A15A",
+    border: "none",
+    color: "#16171A",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontSize: 15,
+    fontWeight: 700,
   },
   page: {
     minHeight: "100vh",
