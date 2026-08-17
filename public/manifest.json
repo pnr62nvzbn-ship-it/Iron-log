@@ -1,0 +1,13 @@
+{
+  "name": "Iron Log",
+  "short_name": "Iron Log",
+  "description": "Log exercises, sets, reps, and weight — track your training progress.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#16171A",
+  "icons": [
+    { "src": "/icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "/icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable" }
+  ]
+}
