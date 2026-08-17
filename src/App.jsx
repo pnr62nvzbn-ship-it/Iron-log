@@ -106,14 +106,11 @@ function WheelPicker({ options, index, onChange }) {
     if (!el) return;
 
     // Hard-clamp scrollTop so it's never possible to drag past the first
-    // or last item, as a backup in case CSS overscroll-behavior isn't
-    // fully honored (support varies slightly across browsers).
+    // or last item.
     const maxScroll = (options.length - 1) * WHEEL_ITEM_H;
     if (el.scrollTop < 0) el.scrollTop = 0;
     else if (el.scrollTop > maxScroll) el.scrollTop = maxScroll;
 
-    // Track the exact scroll position every frame so the text scale/opacity
-    // moves in lockstep with the finger instead of jumping after a delay.
     if (rafRef.current == null) {
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
@@ -146,6 +143,8 @@ function WheelPicker({ options, index, onChange }) {
           ...wheelStyles.scroller,
           paddingTop: WHEEL_PAD,
           paddingBottom: WHEEL_PAD,
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
         }}
       >
         {options.map((opt, i) => {
@@ -182,17 +181,6 @@ const wheelStyles = {
     touchAction: "pan-y",
     overscrollBehavior: "none",
     zIndex: 1,
-  },
-  sharedHighlight: {
-    position: "absolute",
-    top: WHEEL_PAD,
-    left: 0,
-    right: 0,
-    height: WHEEL_ITEM_H,
-    background: "#2B2B2B",
-    borderRadius: 14,
-    pointerEvents: "none",
-    zIndex: 0,
   },
   scroller: {
     height: "100%",
@@ -602,7 +590,6 @@ export default function WorkoutLogger() {
           ) : (
             <>
               <div style={wheelStyles.pickerRow}>
-                <div style={wheelStyles.sharedHighlight} />
                 <WheelPicker
                   options={MUSCLE_GROUPS}
                   index={groupIdx}
@@ -839,7 +826,7 @@ const styles = {
     borderRadius: 20,
     padding: "24px 16px",
     marginTop: 8,
-    minHeight: "48vh",
+    minHeight: "36vh",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
