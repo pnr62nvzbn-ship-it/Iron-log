@@ -139,7 +139,6 @@ function WheelPicker({ options, index, onChange }) {
 
   return (
     <div style={wheelStyles.wrap}>
-      <div style={wheelStyles.centerHighlight} />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -159,7 +158,7 @@ function WheelPicker({ options, index, onChange }) {
               key={opt}
               style={{
                 ...wheelStyles.item,
-                color: selected ? "#ECE9E2" : "#8B8D93",
+                color: selected ? "#ECE9E2" : "#8E8E8E",
                 transform: `scale(${scale})`,
                 opacity,
               }}
@@ -174,7 +173,7 @@ function WheelPicker({ options, index, onChange }) {
 }
 
 const wheelStyles = {
-  pickerRow: { display: "flex", gap: 10 },
+  pickerRow: { display: "flex", gap: 10, position: "relative" },
   wrap: {
     position: "relative",
     height: WHEEL_HEIGHT,
@@ -182,18 +181,18 @@ const wheelStyles = {
     overflow: "hidden",
     touchAction: "pan-y",
     overscrollBehavior: "none",
+    zIndex: 1,
   },
-  centerHighlight: {
+  sharedHighlight: {
     position: "absolute",
     top: WHEEL_PAD,
     left: 0,
     right: 0,
     height: WHEEL_ITEM_H,
-    background: "#212327",
-    borderRadius: 12,
-    borderTop: "1px solid #33353A",
-    borderBottom: "1px solid #33353A",
+    background: "#2B2B2B",
+    borderRadius: 14,
     pointerEvents: "none",
+    zIndex: 0,
   },
   scroller: {
     height: "100%",
@@ -292,7 +291,7 @@ function LoadBar({ sets }) {
         );
       })}
       {sets.length === 0 && (
-        <div style={{ fontSize: 11, color: "#6b6d73", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>no sets yet</div>
+        <div style={{ fontSize: 11, color: "#6E6E6E", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>no sets yet</div>
       )}
     </div>
   );
@@ -383,7 +382,7 @@ export default function WorkoutLogger() {
   if (workouts === null) {
     return (
       <div style={styles.page}>
-        <div style={{ ...styles.centerFill, color: "#8B8D93", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>Loading…</div>
+        <div style={{ ...styles.centerFill, color: "#8E8E8E", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>Loading…</div>
       </div>
     );
   }
@@ -469,7 +468,7 @@ export default function WorkoutLogger() {
       <style>{`
         * { box-sizing: border-box; }
         html, body { overscroll-behavior: none; }
-        input::placeholder { color: #6b6d73; }
+        input::placeholder { color: #6E6E6E; }
         button { cursor: pointer; }
         ::-webkit-scrollbar { width: 0px; height: 0px; }
       `}</style>
@@ -513,7 +512,7 @@ export default function WorkoutLogger() {
               <div style={styles.list}>
                 {(!todaysWorkout || todaysWorkout.exercises.length === 0) && !addingExercise && (
                   <div style={styles.emptyState}>
-                    <Dumbbell size={28} color="#4a4c52" strokeWidth={1.5} />
+                    <Dumbbell size={28} color="#4D4D4D" strokeWidth={1.5} />
                     <div style={styles.emptyTitle}>No exercises logged yet</div>
                     <div style={styles.emptySub}>Add your first exercise to start today's session.</div>
                   </div>
@@ -549,7 +548,7 @@ export default function WorkoutLogger() {
               <div style={styles.list}>
                 {pastWorkouts.length === 0 && (
                   <div style={styles.emptyState}>
-                    <History size={28} color="#4a4c52" strokeWidth={1.5} />
+                    <History size={28} color="#4D4D4D" strokeWidth={1.5} />
                     <div style={styles.emptyTitle}>No history yet</div>
                     <div style={styles.emptySub}>Logged workouts will show up here.</div>
                   </div>
@@ -604,6 +603,7 @@ export default function WorkoutLogger() {
           ) : (
             <>
               <div style={wheelStyles.pickerRow}>
+                <div style={wheelStyles.sharedHighlight} />
                 <WheelPicker
                   options={MUSCLE_GROUPS}
                   index={groupIdx}
@@ -651,11 +651,11 @@ export default function WorkoutLogger() {
           }}
         />
         <button style={styles.navBtn} onClick={() => setView("today")}>
-          <Flame size={18} strokeWidth={2} color={view === "today" ? "#C7A15A" : "#8B8D93"} />
+          <Flame size={18} strokeWidth={2} color={view === "today" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "today" ? styles.navLabelActive : styles.navLabel}>Today</span>
         </button>
         <button style={styles.navBtn} onClick={() => setView("history")}>
-          <History size={18} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8B8D93"} />
+          <History size={18} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "history" ? styles.navLabelActive : styles.navLabel}>History</span>
         </button>
       </div>
@@ -686,7 +686,7 @@ function ExerciseCard({ exercise, expanded, onToggle, onAddSet, onRemoveSet, onR
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={styles.setCountBadge}>{exercise.sets.length}</div>
-          {expanded ? <ChevronUp size={18} color="#8B8D93" /> : <ChevronDown size={18} color="#8B8D93" />}
+          {expanded ? <ChevronUp size={18} color="#8E8E8E" /> : <ChevronDown size={18} color="#8E8E8E" />}
         </div>
       </div>
 
@@ -705,7 +705,7 @@ function ExerciseCard({ exercise, expanded, onToggle, onAddSet, onRemoveSet, onR
                     <span style={styles.setUnit}> reps</span>
                   </div>
                   <button style={styles.iconBtn} onClick={() => onRemoveSet(i)}>
-                    <X size={14} color="#6b6d73" />
+                    <X size={14} color="#6E6E6E" />
                   </button>
                 </div>
               ))}
@@ -761,7 +761,7 @@ function HistoryCard({ workout }) {
             {totalVolume.toLocaleString()} vol
           </div>
         </div>
-        {open ? <ChevronUp size={18} color="#8B8D93" /> : <ChevronDown size={18} color="#8B8D93" />}
+        {open ? <ChevronUp size={18} color="#8E8E8E" /> : <ChevronDown size={18} color="#8E8E8E" />}
       </div>
       {open && (
         <div style={styles.cardBody}>
@@ -781,7 +781,7 @@ function HistoryCard({ workout }) {
                     </div>
                   </div>
                 ))}
-                {ex.sets.length === 0 && <div style={{ color: "#6b6d73", fontSize: 12 }}>No sets recorded</div>}
+                {ex.sets.length === 0 && <div style={{ color: "#6E6E6E", fontSize: 12 }}>No sets recorded</div>}
               </div>
             </div>
           ))}
@@ -809,7 +809,7 @@ const styles = {
     minHeight: "90vh",
     maxHeight: "96vh",
     overflowY: "auto",
-    background: "#111214",
+    background: "#0C0C0C",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: "22px 20px calc(24px + env(safe-area-inset-bottom))",
@@ -835,7 +835,7 @@ const styles = {
     marginBottom: 4,
   },
   sheetCard: {
-    background: "#232529",
+    background: "#222222",
     borderRadius: 20,
     padding: "24px 16px",
     marginTop: 8,
@@ -855,7 +855,7 @@ const styles = {
     width: 76,
     height: 76,
     borderRadius: "50%",
-    background: "#2A2C31",
+    background: "#2D2D2D",
     border: "none",
     color: "#ECE9E2",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
@@ -868,14 +868,14 @@ const styles = {
     borderRadius: "50%",
     background: "#C7A15A",
     border: "none",
-    color: "#16171A",
+    color: "#171717",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 15,
     fontWeight: 700,
   },
   page: {
     minHeight: "100vh",
-    background: "#16171A",
+    background: "#000000",
     display: "flex",
     justifyContent: "center",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
@@ -885,7 +885,7 @@ const styles = {
     width: "100%",
     maxWidth: 480,
     minHeight: "100vh",
-    background: "#16171A",
+    background: "#000000",
     paddingBottom: 90,
     position: "relative",
   },
@@ -894,7 +894,7 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "flex-end",
     padding: "calc(28px + env(safe-area-inset-top)) 20px 18px",
-    borderBottom: "1px solid #26282D",
+    borderBottom: "1px solid #292929",
   },
   eyebrow: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
@@ -924,7 +924,7 @@ const styles = {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 9,
     letterSpacing: "0.12em",
-    color: "#6b6d73",
+    color: "#6E6E6E",
     marginTop: 3,
   },
   viewport: { overflow: "hidden", width: "100%", touchAction: "pan-y" },
@@ -953,10 +953,10 @@ const styles = {
     gap: 8,
   },
   emptyTitle: { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif", fontSize: 16, color: "#ECE9E2", marginTop: 6 },
-  emptySub: { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif", fontSize: 13, color: "#6b6d73", maxWidth: 240 },
+  emptySub: { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif", fontSize: 13, color: "#6E6E6E", maxWidth: 240 },
   card: {
-    background: "#1C1E22",
-    border: "1px solid #26282D",
+    background: "#1E1E1E",
+    border: "1px solid #292929",
     borderRadius: 20,
     touchAction: "pan-y",
     overflow: "hidden",
@@ -982,7 +982,7 @@ const styles = {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 12,
     color: "#C7A15A",
-    background: "#2B2618",
+    background: "#2B2B2B",
     borderRadius: 20,
     minWidth: 22,
     height: 22,
@@ -991,20 +991,20 @@ const styles = {
     justifyContent: "center",
     padding: "0 6px",
   },
-  cardBody: { padding: "0 16px 16px", borderTop: "1px solid #26282D" },
+  cardBody: { padding: "0 16px 16px", borderTop: "1px solid #292929" },
   setRows: { display: "flex", flexDirection: "column", marginTop: 12, gap: 6 },
   setRow: {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    background: "#212327",
+    background: "#232323",
     borderRadius: 14,
     padding: "8px 10px",
   },
   setIndex: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 11,
-    color: "#6b6d73",
+    color: "#6E6E6E",
     width: 14,
   },
   setData: {
@@ -1014,8 +1014,8 @@ const styles = {
     flex: 1,
     fontVariantNumeric: "tabular-nums",
   },
-  setUnit: { color: "#6b6d73", fontSize: 12 },
-  setX: { color: "#6b6d73" },
+  setUnit: { color: "#6E6E6E", fontSize: 12 },
+  setX: { color: "#6E6E6E" },
   iconBtn: {
     background: "transparent",
     border: "none",
@@ -1026,8 +1026,8 @@ const styles = {
   setInputRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 12 },
   numInput: {
     flex: 1,
-    background: "#212327",
-    border: "1px solid #33353A",
+    background: "#232323",
+    border: "1px solid #363636",
     borderRadius: 12,
     padding: "10px 12px",
     color: "#ECE9E2",
@@ -1054,15 +1054,15 @@ const styles = {
     gap: 6,
     background: "transparent",
     border: "none",
-    color: "#6b6d73",
+    color: "#6E6E6E",
     fontSize: 12,
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     marginTop: 14,
     padding: 0,
   },
   exerciseNameInput: {
-    background: "#212327",
-    border: "1px solid #33353A",
+    background: "#232323",
+    border: "1px solid #363636",
     borderRadius: 12,
     padding: "10px 12px",
     color: "#ECE9E2",
@@ -1082,10 +1082,10 @@ const styles = {
   },
   ghostBtn: {
     background: "transparent",
-    border: "1px solid #33353A",
+    border: "1px solid #363636",
     borderRadius: 14,
     padding: "9px 16px",
-    color: "#8B8D93",
+    color: "#8E8E8E",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 13,
   },
@@ -1106,10 +1106,10 @@ const styles = {
     touchAction: "pan-y",
     gap: 8,
     background: "transparent",
-    border: "1.5px dashed #33353A",
+    border: "1.5px dashed #363636",
     borderRadius: 20,
     padding: "14px",
-    color: "#8B8D93",
+    color: "#8E8E8E",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 14,
     fontWeight: 500,
@@ -1117,7 +1117,7 @@ const styles = {
   historyMeta: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 11,
-    color: "#6b6d73",
+    color: "#6E6E6E",
     marginTop: 4,
   },
   historyExerciseName: {
@@ -1134,13 +1134,13 @@ const styles = {
     transform: "translateX(-50%)",
     width: "calc(100% - 32px)",
     maxWidth: 448,
-    background: "#1C1E22",
+    background: "#1E1E1E",
     borderRadius: 34,
     display: "flex",
     padding: "10px 18px",
     gap: 8,
     boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
-    border: "1px solid #2A2C31",
+    border: "1px solid #2D2D2D",
     overflow: "hidden",
   },
   navSlider: {
@@ -1170,7 +1170,7 @@ const styles = {
     zIndex: 1,
   },
   navLabel: {
-    color: "#8B8D93",
+    color: "#8E8E8E",
     fontWeight: 500,
   },
   navLabelActive: {
