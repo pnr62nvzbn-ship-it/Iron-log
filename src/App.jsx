@@ -1195,7 +1195,7 @@ const styles = {
     maxWidth: 480,
     minHeight: "100dvh",
     background: "#000000",
-    paddingBottom: 90,
+    paddingBottom: 80,
     position: "relative",
   },
   header: {
@@ -1438,7 +1438,7 @@ const styles = {
   },
   bottomNav: {
     position: "fixed",
-    bottom: "calc(16px + env(safe-area-inset-bottom))",
+    bottom: "calc(6px + env(safe-area-inset-bottom))",
     left: "50%",
     transform: "translateX(-50%)",
     width: "calc(100% - 32px)",
