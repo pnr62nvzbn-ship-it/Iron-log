@@ -1438,7 +1438,7 @@ const styles = {
   },
   bottomNav: {
     position: "fixed",
-    bottom: "calc(6px + env(safe-area-inset-bottom))",
+    bottom: 0,
     left: "50%",
     transform: "translateX(-50%)",
     width: "calc(100% - 32px)",
@@ -1448,7 +1448,7 @@ const styles = {
     WebkitBackdropFilter: "blur(20px) saturate(160%)",
     borderRadius: 34,
     display: "flex",
-    padding: "10px 18px",
+    padding: "8px 18px",
     gap: 8,
     boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
     border: "1px solid rgba(255,255,255,0.06)",
