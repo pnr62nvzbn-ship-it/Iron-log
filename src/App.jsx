@@ -161,6 +161,11 @@ function WheelPicker({ options, index, onChange }) {
 
   return (
     <div style={wheelStyles.wrap}>
+      {/* iOS UIPickerView selection indicator — thin rules marking the
+          selected row band, sitting above the scroll content so they stay
+          fixed in place while items scroll past underneath. */}
+      <div style={wheelStyles.selectionTop} />
+      <div style={wheelStyles.selectionBottom} />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -206,6 +211,26 @@ const wheelStyles = {
     touchAction: "pan-y",
     overscrollBehavior: "none",
     zIndex: 1,
+  },
+  selectionTop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: WHEEL_PAD,
+    height: 1,
+    background: "rgba(255,255,255,0.14)",
+    zIndex: 2,
+    pointerEvents: "none",
+  },
+  selectionBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: WHEEL_PAD + WHEEL_ITEM_H,
+    height: 1,
+    background: "rgba(255,255,255,0.14)",
+    zIndex: 2,
+    pointerEvents: "none",
   },
   scroller: {
     height: "100%",
@@ -331,6 +356,39 @@ export default function WorkoutLogger() {
   const [sliderStretching, setSliderStretching] = useState(false);
   const stretchTimeout = useRef(null);
   const navRef = useRef(null);
+  const sheetRef = useRef(null);
+  const sheetDrag = useRef({ startY: 0, dragging: false, lastY: 0, armed: false });
+  const sheetRafRef = useRef(null);
+  const [sheetDragActive, setSheetDragActive] = useState(false);
+
+  const closeAddExerciseSheet = () => {
+    setAddingExercise(false);
+    setCustomMode(false);
+    setCustomName("");
+  };
+
+  const handleSheetHandleTouchStart = (e) => {
+    sheetDrag.current.startY = e.touches[0].clientY;
+    sheetDrag.current.dragging = false;
+    sheetDrag.current.armed = true; // only a touch that starts on the handle itself may drag the sheet
+  };
+
+  const endSheetDrag = () => {
+    if (sheetRafRef.current != null) {
+      cancelAnimationFrame(sheetRafRef.current);
+      sheetRafRef.current = null;
+    }
+    const draggedDistance = sheetDrag.current.lastY - sheetDrag.current.startY;
+    setSheetDragActive(false);
+    if (sheetRef.current) sheetRef.current.style.transform = "";
+    // Dismiss once dragged more than a third of the way down — matches the
+    // real iOS interactive-sheet-dismiss threshold behavior.
+    if (sheetDrag.current.dragging && draggedDistance > 130) {
+      closeAddExerciseSheet();
+    }
+    sheetDrag.current.dragging = false;
+    sheetDrag.current.armed = false;
+  };
   const navSliderRef = useRef(null);
   // navDragActive is a rare on/off flip (drag start / drag end) so React only
   // re-renders twice per gesture. The actual per-frame position is written
@@ -417,6 +475,46 @@ export default function WorkoutLogger() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workouts]);
+
+  // Sheet drag-to-dismiss — only the handle area triggers this, so it never
+  // fights with scrolling the exercise list or spinning the wheel picker
+  // inside the sheet.
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const onMove = (e) => {
+      if (!sheetDrag.current.armed) return; // this touch didn't start on the handle — ignore entirely
+      const touch = e.touches[0];
+      sheetDrag.current.lastY = touch.clientY;
+      const delta = touch.clientY - sheetDrag.current.startY;
+      // Claim the gesture on every move from the first frame — iOS decides
+      // native-scroll vs JS control based on the FIRST touchmove event.
+      e.preventDefault();
+
+      if (!sheetDrag.current.dragging) {
+        if (delta < 6) return; // still just a tap on the handle
+        sheetDrag.current.dragging = true;
+        setSheetDragActive(true);
+      }
+
+      if (sheetRafRef.current == null) {
+        sheetRafRef.current = requestAnimationFrame(() => {
+          sheetRafRef.current = null;
+          const clamped = Math.max(0, sheetDrag.current.lastY - sheetDrag.current.startY);
+          if (sheetRef.current) {
+            sheetRef.current.style.transform = `translate(-50%, ${clamped}px)`;
+          }
+        });
+      }
+    };
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchcancel", endSheetDrag);
+    return () => {
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchcancel", endSheetDrag);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const currentGroup = MUSCLE_GROUPS[groupIdx];
   const currentExerciseList = EXERCISE_LIBRARY[currentGroup];
@@ -641,11 +739,11 @@ export default function WorkoutLogger() {
   return (
     <div style={styles.page}>
       <style>{`
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         html, body { margin: 0; padding: 0; background: #000000; overscroll-behavior: none; }
         #root { min-height: 100dvh; background: #000000; }
         input::placeholder { color: #6E6E6E; }
-        button { cursor: pointer; transition: transform 0.12s ease, opacity 0.12s ease; }
+        button { cursor: pointer; transition: transform 0.12s ease, opacity 0.12s ease; -webkit-user-select: none; user-select: none; }
         button:active { transform: scale(0.96); opacity: 0.72; }
         ::-webkit-scrollbar { width: 0px; height: 0px; }
       `}</style>
@@ -717,7 +815,7 @@ export default function WorkoutLogger() {
                     setAddingExercise(true);
                   }}
                 >
-                  <Plus size={18} />
+                  <Plus size={19} strokeWidth={2.25} color="#C7A15A" />
                   <span>Add exercise</span>
                 </button>
               </div>
@@ -820,11 +918,20 @@ export default function WorkoutLogger() {
         }}
       />
       <div
+        ref={sheetRef}
         style={{
           ...styles.sheet,
           transform: `translate(-50%, ${addingExercise ? "0%" : "100%"})`,
+          transition: sheetDragActive ? "none" : styles.sheet.transition,
         }}
       >
+        <div
+          style={styles.sheetHandleZone}
+          onTouchStart={handleSheetHandleTouchStart}
+          onTouchEnd={endSheetDrag}
+        >
+          <div style={styles.sheetHandle} />
+        </div>
         <div style={styles.sheetTitle}>Add exercise</div>
         <div style={styles.sheetCard}>
           {customMode ? (
@@ -838,6 +945,9 @@ export default function WorkoutLogger() {
                   if (e.key === "Escape") setCustomMode(false);
                 }}
                 placeholder="Exercise name"
+                autoCapitalize="words"
+                autoCorrect="off"
+                enterKeyHint="done"
                 style={styles.exerciseNameInput}
               />
               <button style={styles.linkBtn} onClick={() => setCustomMode(false)}>
@@ -955,15 +1065,15 @@ export default function WorkoutLogger() {
           />
         </div>
         <button style={styles.navBtn} onClick={() => switchView("today")}>
-          <Flame size={26} strokeWidth={2} color={view === "today" ? "#C7A15A" : "#8E8E8E"} />
+          <Flame size={23} strokeWidth={1.75} color={view === "today" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "today" ? styles.navLabelActive : styles.navLabel}>Today</span>
         </button>
         <button style={styles.navBtn} onClick={() => switchView("history")}>
-          <History size={26} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8E8E8E"} />
+          <History size={23} strokeWidth={1.75} color={view === "history" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "history" ? styles.navLabelActive : styles.navLabel}>History</span>
         </button>
         <button style={styles.navBtn} onClick={() => switchView("progress")}>
-          <TrendsIcon size={26} strokeWidth={2} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
+          <TrendsIcon size={23} strokeWidth={1.75} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "progress" ? styles.navLabelActive : styles.navLabel}>Progress</span>
         </button>
       </div>
@@ -994,7 +1104,7 @@ function ExerciseCard({ exercise, expanded, onToggle, onAddSet, onRemoveSet, onR
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={styles.setCountBadge}>{exercise.sets.length}</div>
-          {expanded ? <ChevronUp size={18} color="#8E8E8E" /> : <ChevronDown size={18} color="#8E8E8E" />}
+          {expanded ? <ChevronUp size={18} strokeWidth={1.75} color="#8E8E8E" /> : <ChevronDown size={18} strokeWidth={1.75} color="#8E8E8E" />}
         </div>
       </div>
 
@@ -1013,7 +1123,7 @@ function ExerciseCard({ exercise, expanded, onToggle, onAddSet, onRemoveSet, onR
                     <span style={styles.setUnit}> reps</span>
                   </div>
                   <button style={styles.iconBtn} onClick={() => onRemoveSet(i)}>
-                    <X size={14} color="#6E6E6E" />
+                    <X size={14} strokeWidth={1.75} color="#6E6E6E" />
                   </button>
                 </div>
               ))}
@@ -1027,6 +1137,7 @@ function ExerciseCard({ exercise, expanded, onToggle, onAddSet, onRemoveSet, onR
               placeholder="lb"
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
+              enterKeyHint="next"
               style={styles.numInput}
             />
             <div style={styles.setX}>×</div>
@@ -1037,15 +1148,16 @@ function ExerciseCard({ exercise, expanded, onToggle, onAddSet, onRemoveSet, onR
               value={reps}
               onChange={(e) => setReps(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
+              enterKeyHint="done"
               style={styles.numInput}
             />
             <button style={styles.addSetBtn} onClick={submit}>
-              <Plus size={16} />
+              <Plus size={16} strokeWidth={2} />
             </button>
           </div>
 
           <button style={styles.removeExerciseBtn} onClick={onRemoveExercise}>
-            <Trash2 size={13} />
+            <Trash2 size={13} strokeWidth={1.75} />
             <span>Remove exercise</span>
           </button>
         </div>
@@ -1069,7 +1181,7 @@ function HistoryCard({ workout }) {
             {totalVolume.toLocaleString()} vol
           </div>
         </div>
-        {open ? <ChevronUp size={18} color="#8E8E8E" /> : <ChevronDown size={18} color="#8E8E8E" />}
+        {open ? <ChevronUp size={18} strokeWidth={1.75} color="#8E8E8E" /> : <ChevronDown size={18} strokeWidth={1.75} color="#8E8E8E" />}
       </div>
       {open && (
         <div style={styles.cardBody}>
@@ -1129,6 +1241,21 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 10,
+  },
+  sheetHandleZone: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    height: 34,
+    marginTop: -12,
+    marginBottom: -6,
+    touchAction: "none",
+  },
+  sheetHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.22)",
   },
   sheetHeaderRow: {
     display: "flex",
@@ -1203,7 +1330,7 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "flex-end",
     padding: "calc(28px + env(safe-area-inset-top)) 20px 18px",
-    borderBottom: "1px solid #292929",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
   },
   eyebrow: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
@@ -1215,16 +1342,16 @@ const styles = {
   headerDate: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontWeight: 700,
-    fontSize: 28,
+    fontSize: 32,
     color: "#ECE9E2",
-    letterSpacing: "-0.01em",
+    letterSpacing: "-0.02em",
   },
   statPair: { display: "flex", gap: 18 },
   statBlock: { textAlign: "right" },
   statNum: {
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontFamily: "ui-rounded, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif",
     fontSize: 22,
-    fontWeight: 600,
+    fontWeight: 700,
     color: "#ECE9E2",
     lineHeight: 1,
     fontVariantNumeric: "tabular-nums",
@@ -1265,7 +1392,7 @@ const styles = {
   emptySub: { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif", fontSize: 13, color: "#6E6E6E", maxWidth: 240 },
   card: {
     background: "#1E1E1E",
-    border: "1px solid #292929",
+    border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 20,
     touchAction: "pan-y",
     overflow: "hidden",
@@ -1328,7 +1455,8 @@ const styles = {
   iconBtn: {
     background: "transparent",
     border: "none",
-    padding: 4,
+    padding: 12,
+    margin: -12,
     display: "flex",
     alignItems: "center",
   },
@@ -1336,7 +1464,7 @@ const styles = {
   numInput: {
     flex: 1,
     background: "#232323",
-    border: "1px solid #363636",
+    border: "1px solid rgba(255,255,255,0.12)",
     borderRadius: 12,
     padding: "10px 12px",
     color: "#ECE9E2",
@@ -1348,7 +1476,7 @@ const styles = {
   addSetBtn: {
     background: "#C7A15A",
     border: "none",
-    borderRadius: 12,
+    borderRadius: 999,
     width: 38,
     height: 38,
     display: "flex",
@@ -1363,7 +1491,7 @@ const styles = {
     gap: 6,
     background: "transparent",
     border: "none",
-    color: "#6E6E6E",
+    color: "#FF453A",
     fontSize: 12,
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     marginTop: 14,
@@ -1371,7 +1499,7 @@ const styles = {
   },
   exerciseNameInput: {
     background: "#232323",
-    border: "1px solid #363636",
+    border: "1px solid rgba(255,255,255,0.12)",
     borderRadius: 12,
     padding: "10px 12px",
     color: "#ECE9E2",
@@ -1382,8 +1510,8 @@ const styles = {
   primaryBtn: {
     background: "#C7A15A",
     border: "none",
-    borderRadius: 14,
-    padding: "9px 16px",
+    borderRadius: 999,
+    padding: "9px 18px",
     color: "#fff",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontWeight: 600,
@@ -1391,9 +1519,9 @@ const styles = {
   },
   ghostBtn: {
     background: "transparent",
-    border: "1px solid #363636",
-    borderRadius: 14,
-    padding: "9px 16px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    padding: "9px 18px",
     color: "#8E8E8E",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
     fontSize: 13,
@@ -1413,15 +1541,15 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     touchAction: "pan-y",
-    gap: 8,
-    background: "transparent",
-    border: "1.5px dashed #363636",
-    borderRadius: 20,
+    gap: 6,
+    background: "rgba(199, 161, 90, 0.10)",
+    border: "none",
+    borderRadius: 16,
     padding: "14px",
-    color: "#8E8E8E",
+    color: "#C7A15A",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
-    fontSize: 14,
-    fontWeight: 500,
+    fontSize: 15,
+    fontWeight: 600,
   },
   historyMeta: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
@@ -1438,7 +1566,7 @@ const styles = {
   },
   bottomNav: {
     position: "fixed",
-    bottom: "calc(20px + env(safe-area-inset-bottom))",
+    bottom: "calc(4px + env(safe-area-inset-bottom))",
     left: "50%",
     transform: "translateX(-50%)",
     width: "calc(100% - 32px)",
@@ -1448,7 +1576,7 @@ const styles = {
     WebkitBackdropFilter: "blur(20px) saturate(160%)",
     borderRadius: 34,
     display: "flex",
-    padding: "16px 18px",
+    padding: "10px 16px",
     gap: 8,
     boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
     border: "1px solid rgba(255,255,255,0.06)",
@@ -1496,13 +1624,13 @@ const styles = {
   statCard: {
     flex: 1,
     background: "#1E1E1E",
-    border: "1px solid #292929",
+    border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 16,
     padding: "14px 10px",
     textAlign: "center",
   },
   statCardNum: {
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
+    fontFamily: "ui-rounded, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif",
     fontSize: 20,
     fontWeight: 700,
     color: "#ECE9E2",
@@ -1522,7 +1650,7 @@ const styles = {
   },
   chartCard: {
     background: "#1E1E1E",
-    border: "1px solid #292929",
+    border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 20,
     padding: "18px 16px 14px",
   },
@@ -1573,7 +1701,7 @@ const styles = {
     background: "transparent",
     border: "none",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
-    fontSize: 13,
+    fontSize: 12,
     padding: "2px 0",
     position: "relative",
     zIndex: 1,
