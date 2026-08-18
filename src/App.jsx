@@ -955,15 +955,15 @@ export default function WorkoutLogger() {
           />
         </div>
         <button style={styles.navBtn} onClick={() => switchView("today")}>
-          <Flame size={18} strokeWidth={2} color={view === "today" ? "#C7A15A" : "#8E8E8E"} />
+          <Flame size={26} strokeWidth={2} color={view === "today" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "today" ? styles.navLabelActive : styles.navLabel}>Today</span>
         </button>
         <button style={styles.navBtn} onClick={() => switchView("history")}>
-          <History size={18} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8E8E8E"} />
+          <History size={26} strokeWidth={2} color={view === "history" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "history" ? styles.navLabelActive : styles.navLabel}>History</span>
         </button>
         <button style={styles.navBtn} onClick={() => switchView("progress")}>
-          <TrendsIcon size={18} strokeWidth={2} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
+          <TrendsIcon size={26} strokeWidth={2} color={view === "progress" ? "#C7A15A" : "#8E8E8E"} />
           <span style={view === "progress" ? styles.navLabelActive : styles.navLabel}>Progress</span>
         </button>
       </div>
@@ -1438,7 +1438,7 @@ const styles = {
   },
   bottomNav: {
     position: "fixed",
-    bottom: 0,
+    bottom: "calc(20px + env(safe-area-inset-bottom))",
     left: "50%",
     transform: "translateX(-50%)",
     width: "calc(100% - 32px)",
@@ -1448,7 +1448,7 @@ const styles = {
     WebkitBackdropFilter: "blur(20px) saturate(160%)",
     borderRadius: 34,
     display: "flex",
-    padding: "8px 18px",
+    padding: "16px 18px",
     gap: 8,
     boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
     border: "1px solid rgba(255,255,255,0.06)",
@@ -1573,7 +1573,7 @@ const styles = {
     background: "transparent",
     border: "none",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif",
-    fontSize: 11,
+    fontSize: 13,
     padding: "2px 0",
     position: "relative",
     zIndex: 1,
